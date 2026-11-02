@@ -1,165 +1,78 @@
-<!DOCTYPE html>
-<html lang="en">
 
-<head>
-
-<meta charset="UTF-8">
-
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
-
-<title>HLS Player</title>
-
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.4"></script>
-
+<script src="https://content.jwplatform.com/libraries/SAHhwvZq.js"></script>
 <style>
-
-html,
-body {
+html, body {
     margin: 0;
     padding: 0;
-    background: #000;
+    width: 100%;
+    height: 100%;
+    background: black;
+}
+#player {
     width: 100%;
     height: 100%;
 }
-
-.player {
-    width: 100%;
-    max-width: 100%;
-    aspect-ratio: 16 / 9;
-    background: #000;
-    position: relative;
-}
-
-video {
-    width: 100%;
-    height: 100%;
-    display: block;
-    background: #000;
-    object-fit: contain;
-}
-
 </style>
-
 </head>
-
 <body>
-
-<div class="player">
-
-<video
-    id="video"
-    controls
-    playsinline
-    webkit-playsinline
-    preload="auto">
-</video>
-
-</div>
-
-
+<div id="player"></div>
 <script>
+var streamURL = "https://live2.jorvakstreamcache.com/live/channel1.m3u8";
+var player = jwplayer("player");
+player.setup({
+    file: streamURL,
+    type: "hls",
+    primary: "html5",
 
-const video = document.getElementById("video");
+    autostart: true,
+    mute: true,
 
-const streamURL =
-"https://2sisi.s3.us-east-2.amazonaws.com/bein2/master.m3u8";
+    width: "100%",
+    height: "100%",
+    stretching: "fill",
 
+    preload: "metadata",
 
-if (Hls.isSupported()) {
+    // 🔥 penting: pakai engine hls.js biar adaptif
+    hlsjsdefault: true,
 
-    const hls = new Hls({
+    // 🔥 lebih cepat pilih kualitas rendah dulu
+    defaultBandwidthEstimate: 400000,
 
-        enableWorker: true,
+    // 🔥 UI kualitas
+    qualityLabels: {
+        "0": "Auto"
+    },
 
-        lowLatencyMode: true,
+    logo: {
+        file: "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgwNjkZYfLmvB5B8kULLicWE_vxUwbzPqjBVUjdrPvYl9fLW9w7-B5hxUEYc7ODWXUe4AKv0nOaXS44bwmahu7V_jDyCzVsvU5yEp9DOEy3v34Dp1xzZs7Z2sHtrjJKeOdXh7W27W7zmOyCVFOulpSzOo-bn5SYATZlOO4w9XKgnPGciR0pBEgnvRmn-amC/s1600/86dec2e2-dccd-44ce-9491-418b3d79c4db.png",
+        link: "https://biolinku.co/rimbatv",
+        position: "top-right"
+    }
+});
+// 🔥 AUTO FIX BUFFERING
+player.on('buffer', function() {
+    console.log("Buffering...");
+});
+// 🔥 kalau error &#8594; reload
+player.on('error', function() {
+    console.log("Error, reload...");
+    setTimeout(function() {
+        player.load([{ file: streamURL }]);
+        player.play();
+    }, 3000);
+});
+// 🔥 kalau stuck lama &#8594; reload
+var lastTime = 0;
+setInterval(function() {
+    var position = player.getPosition();
 
-        backBufferLength: 90,
+    if (position === lastTime) {
+        console.log("Stuck detected, reload...");
+        player.load([{ file: streamURL }]);
+        player.play();
+    }
 
-        liveSyncDurationCount: 3,
-
-        liveMaxLatencyDurationCount: 6,
-
-        maxBufferLength: 30,
-
-        maxMaxBufferLength: 60,
-
-        capLevelToPlayerSize: true
-
-    });
-
-
-    hls.loadSource(streamURL);
-
-    hls.attachMedia(video);
-
-
-    hls.on(
-        Hls.Events.MANIFEST_PARSED,
-        function () {
-
-            console.log("HLS stream loaded");
-
-        }
-    );
-
-
-    hls.on(
-        Hls.Events.ERROR,
-        function (event, data) {
-
-            console.log("HLS Error:", data);
-
-            if (data.fatal) {
-
-                if (
-                    data.type ===
-                    Hls.ErrorTypes.NETWORK_ERROR
-                ) {
-
-                    hls.startLoad();
-
-                }
-
-                else if (
-                    data.type ===
-                    Hls.ErrorTypes.MEDIA_ERROR
-                ) {
-
-                    hls.recoverMediaError();
-
-                }
-
-            }
-
-        }
-    );
-
-}
-
-
-/* Safari / iPhone */
-
-else if (
-    video.canPlayType(
-        "application/vnd.apple.mpegurl"
-    )
-) {
-
-    video.src = streamURL;
-
-}
-
-else {
-
-    alert(
-        "Your browser does not support HLS playback."
-    );
-
-}
-
+    lastTime = position;
+}, 10000);
 </script>
-
-</body>
-
-</html>
