@@ -1,21 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
 
 <meta charset="UTF-8">
 
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>HLS Player</title>
 
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+<script src="https://content.jwplatform.com/libraries/SAHhwvZq.js"></script>
 
 <style>
-
-* {
-    box-sizing: border-box;
-}
 
 html,
 body {
@@ -24,91 +20,30 @@ body {
     width: 100%;
     height: 100%;
     background: #000;
+    overflow: hidden;
 }
 
-body {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.player {
+#player {
     width: 100%;
-    max-width: 1200px;
-    background: #000;
-    position: relative;
-}
-
-video {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 16 / 9;
-    display: block;
-    background: #000;
-}
-
-.loading {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: white;
-    font-family: Arial, sans-serif;
-    font-size: 15px;
-    z-index: 5;
-}
-
-.error {
-    display: none;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: white;
-    font-family: Arial, sans-serif;
-    text-align: center;
-    width: 90%;
-    z-index: 5;
+    height: 100%;
 }
 
 </style>
 
 </head>
 
+
 <body>
 
-<div class="player">
-
-    <video
-        id="video"
-        controls
-        playsinline
-        webkit-playsinline
-        preload="auto">
-    </video>
-
-    <div id="loading" class="loading">
-        Loading...
-    </div>
-
-    <div id="error" class="error">
-        Unable to load stream.
-    </div>
-
-</div>
+<div id="player"></div>
 
 
 <script>
 
-const video = document.getElementById("video");
-const loading = document.getElementById("loading");
-const error = document.getElementById("error");
-
-
 /*
-    GET STREAM URL FROM:
-    
-    ?url=https://example.com/stream.m3u8
+==================================================
+GET HLS URL FROM ?url=
+==================================================
 */
 
 const params = new URLSearchParams(window.location.search);
@@ -116,156 +51,290 @@ const params = new URLSearchParams(window.location.search);
 const streamURL = params.get("url");
 
 
+/*
+==================================================
+CHECK URL
+==================================================
+*/
+
 if (!streamURL) {
 
-    loading.style.display = "none";
-
-    error.style.display = "block";
-
-    error.innerHTML =
-        "No HLS stream URL provided.<br><br>" +
-        "Use ?url=YOUR-M3U8-URL";
+    document.getElementById("player").innerHTML = `
+        <div style="
+            color:white;
+            background:#000;
+            width:100%;
+            height:100%;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            text-align:center;
+            font-family:Arial,sans-serif;
+        ">
+            <div>
+                <h3>No stream URL</h3>
+                <p>Use ?url=YOUR-M3U8-URL</p>
+            </div>
+        </div>
+    `;
 
 }
 
+
+/*
+==================================================
+START PLAYER
+==================================================
+*/
+
 else {
 
-    console.log("Stream:", streamURL);
+    console.log("HLS URL:", streamURL);
+
+
+    var player = jwplayer("player");
+
+
+    player.setup({
+
+        /*
+        HLS STREAM
+        */
+        file: streamURL,
+
+        type: "hls",
+
+        /*
+        HTML5 PLAYER
+        */
+        primary: "html5",
+
+        /*
+        AUTOPLAY
+        */
+        autostart: true,
+
+        /*
+        Start muted because many browsers
+        block autoplay with sound.
+        */
+        mute: true,
+
+        /*
+        FULL SIZE
+        */
+        width: "100%",
+
+        height: "100%",
+
+        /*
+        VIDEO DISPLAY
+        */
+        stretching: "uniform",
+
+        /*
+        LOAD METADATA FIRST
+        */
+        preload: "metadata",
+
+        /*
+        USE HLS.JS
+        */
+        hlsjsdefault: true,
+
+        /*
+        START WITH LOWER BANDWIDTH
+        */
+        defaultBandwidthEstimate: 400000,
+
+        /*
+        QUALITY MENU
+        */
+        qualityLabels: {
+            "0": "Auto"
+        },
+
+        /*
+        LIVE STREAM SETTINGS
+        */
+        liveTimeout: 60
+
+    });
 
 
     /*
-        HLS.JS
+    ==================================================
+    BUFFER EVENT
+    ==================================================
     */
 
-    if (Hls.isSupported()) {
+    player.on("buffer", function () {
 
-        const hls = new Hls({
+        console.log("Buffering...");
 
-            enableWorker: true,
-
-            lowLatencyMode: true,
-
-            backBufferLength: 90,
-
-            liveSyncDurationCount: 3,
-
-            liveMaxLatencyDurationCount: 6,
-
-            maxBufferLength: 30,
-
-            maxMaxBufferLength: 60,
-
-            capLevelToPlayerSize: true
-
-        });
+    });
 
 
-        hls.loadSource(streamURL);
+    /*
+    ==================================================
+    PLAY EVENT
+    ==================================================
+    */
 
-        hls.attachMedia(video);
+    player.on("play", function () {
+
+        console.log("Playing");
+
+    });
 
 
-        hls.on(
-            Hls.Events.MANIFEST_PARSED,
-            function () {
+    /*
+    ==================================================
+    ERROR RECOVERY
+    ==================================================
+    */
 
-                console.log("HLS loaded");
+    player.on("error", function (error) {
 
-                loading.style.display = "none";
+        console.log("Player error:", error);
+
+        setTimeout(function () {
+
+            console.log("Reloading stream...");
+
+            try {
+
+                player.load([
+                    {
+                        file: streamURL,
+                        type: "hls"
+                    }
+                ]);
+
+                player.play();
 
             }
-        );
+
+            catch (e) {
+
+                console.log(
+                    "Reload error:",
+                    e
+                );
+
+            }
+
+        }, 3000);
+
+    });
 
 
-        hls.on(
-            Hls.Events.ERROR,
-            function (event, data) {
+    /*
+    ==================================================
+    STUCK STREAM DETECTION
+    ==================================================
+    */
 
-                console.log("HLS error:", data);
+    var lastTime = -1;
+
+    var stuckCount = 0;
 
 
-                if (data.fatal) {
+    setInterval(function () {
 
-                    if (
-                        data.type ===
-                        Hls.ErrorTypes.NETWORK_ERROR
-                    ) {
+        try {
 
-                        console.log(
-                            "Network error - retrying"
-                        );
+            var position = player.getPosition();
 
-                        hls.startLoad();
 
-                    }
+            /*
+            Ignore invalid position
+            */
+            if (
+                position === null ||
+                position === undefined ||
+                position < 0
+            ) {
 
-                    else if (
-                        data.type ===
-                        Hls.ErrorTypes.MEDIA_ERROR
-                    ) {
+                return;
 
-                        console.log(
-                            "Media error - recovering"
-                        );
+            }
 
-                        hls.recoverMediaError();
 
-                    }
+            /*
+            Check whether playback position
+            has stopped moving.
+            */
 
-                    else {
+            if (position === lastTime) {
 
-                        loading.style.display = "none";
+                stuckCount++;
 
-                        error.style.display = "block";
+                console.log(
+                    "Player may be stuck:",
+                    stuckCount
+                );
 
-                    }
+
+                /*
+                Require multiple checks before
+                reloading to avoid unnecessary reloads.
+                */
+
+                if (stuckCount >= 2) {
+
+                    console.log(
+                        "Stuck detected - reloading..."
+                    );
+
+
+                    player.load([
+                        {
+                            file: streamURL,
+                            type: "hls"
+                        }
+                    ]);
+
+
+                    setTimeout(function () {
+
+                        player.play();
+
+                    }, 1000);
+
+
+                    stuckCount = 0;
 
                 }
 
             }
-        );
 
-    }
+            else {
 
-
-    /*
-        Safari / iPhone native HLS
-    */
-
-    else if (
-        video.canPlayType(
-            "application/vnd.apple.mpegurl"
-        )
-    ) {
-
-        video.src = streamURL;
-
-        video.addEventListener(
-            "loadedmetadata",
-            function () {
-
-                loading.style.display = "none";
+                stuckCount = 0;
 
             }
-        );
-
-    }
 
 
-    else {
+            lastTime = position;
 
-        loading.style.display = "none";
+        }
 
-        error.style.display = "block";
+        catch (e) {
 
-        error.innerHTML =
-            "Your browser does not support HLS.";
+            console.log(
+                "Position check error:",
+                e
+            );
 
-    }
+        }
+
+    }, 10000);
 
 }
 
 </script>
 
 </body>
+
 </html>
