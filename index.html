@@ -1,19 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
+<title>HLS Player</title>
 
-<title>Live Player</title>
-
-<script src="https://content.jwplatform.com/libraries/SAHhwvZq.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
 <style>
-
 html,
 body {
     margin: 0;
@@ -21,352 +16,147 @@ body {
     width: 100%;
     height: 100%;
     background: #000;
-}
-
-body {
     overflow: hidden;
 }
 
 #player {
     width: 100%;
     height: 100%;
+    background: #000;
+    object-fit: contain;
 }
 
+#error {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #fff;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    display: none;
+}
 </style>
-
 </head>
 
 <body>
 
-<div id="player"></div>
+<video
+    id="player"
+    controls
+    playsinline
+    autoplay>
+</video>
+
+<div id="error">
+    Unable to load stream.
+</div>
 
 <script>
+(function () {
 
-/* =========================================
-   GET STREAM URL
-   Example:
-   ?url=https://example.com/live.m3u8
-========================================= */
+    const video = document.getElementById("player");
+    const errorBox = document.getElementById("error");
 
-const params = new URLSearchParams(
-    window.location.search
-);
+    const params = new URLSearchParams(window.location.search);
+    const streamUrl = params.get("url");
 
-const streamURL = params.get("url");
+    if (!streamUrl) {
+        errorBox.innerHTML = "No HLS stream URL specified.";
+        errorBox.style.display = "block";
+        return;
+    }
 
+    function showError(message) {
+        errorBox.innerHTML = message;
+        errorBox.style.display = "block";
+    }
 
-/* =========================================
-   NO URL
-========================================= */
+    /*
+     * HLS.js
+     */
+    if (window.Hls && Hls.isSupported()) {
 
-if (!streamURL) {
+        const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+            backBufferLength: 90
+        });
 
-    document.getElementById("player").innerHTML = `
-        <div style="
-            width:100%;
-            height:100%;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            background:#000;
-            color:#fff;
-            font-family:Arial;
-            text-align:center;
-        ">
-            <div>
-                <h3>No stream URL</h3>
-                <p>Use ?url=YOUR-M3U8-URL</p>
-            </div>
-        </div>
-    `;
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
 
-}
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
 
+            video.play().catch(function () {
+                // Autoplay may be blocked by the browser.
+            });
 
-/* =========================================
-   PLAYER
-========================================= */
+        });
 
-else {
+        hls.on(Hls.Events.ERROR, function (event, data) {
 
-    console.log("Stream URL:");
-    console.log(streamURL);
+            console.log("HLS error:", data);
 
+            if (data.fatal) {
 
-    let player = jwplayer("player");
+                switch (data.type) {
 
+                    case Hls.ErrorTypes.NETWORK_ERROR:
+                        console.log("Network error. Retrying...");
+                        hls.startLoad();
+                        break;
 
-    function loadStream() {
+                    case Hls.ErrorTypes.MEDIA_ERROR:
+                        console.log("Media error. Recovering...");
+                        hls.recoverMediaError();
+                        break;
 
-        console.log("Loading stream...");
-
-
-        player.setup({
-
-            file: streamURL,
-
-            type: "hls",
-
-            primary: "html5",
-
-            width: "100%",
-
-            height: "100%",
-
-            aspectratio: "16:9",
-
-            stretching: "uniform",
-
-            controls: true,
-
-            autostart: true,
-
-            mute: true,
-
-            preload: "metadata",
-
-            /*
-             * Use HLS.js where supported
-             */
-            hlsjsdefault: true,
-
-            /*
-             * Initial bandwidth estimate
-             */
-            defaultBandwidthEstimate: 400000,
-
-            /*
-             * Live manifest timeout
-             */
-            liveTimeout: 30,
-
-            /*
-             * Keep player close to live edge
-             */
-            liveSyncDuration: 10,
-
-            /*
-             * Quality menu
-             */
-            qualityLabels: {
-                "0": "Auto"
+                    default:
+                        hls.destroy();
+                        showError("Unable to play this stream.");
+                        break;
+                }
             }
-
-        });
-
-
-        /* ==============================
-           PLAYER READY
-        ============================== */
-
-        player.on("ready", function () {
-
-            console.log("Player ready");
-
-        });
-
-
-        /* ==============================
-           PLAY
-        ============================== */
-
-        player.on("play", function () {
-
-            console.log("Playing");
-
-        });
-
-
-        /* ==============================
-           BUFFER
-        ============================== */
-
-        player.on("buffer", function () {
-
-            console.log("Buffering...");
-
-        });
-
-
-        /* ==============================
-           ERROR
-        ============================== */
-
-        player.on("error", function (event) {
-
-            console.log(
-                "JW Player error:",
-                event
-            );
-
-
-            /*
-             * Don't reload immediately.
-             * Wait 5 seconds.
-             */
-
-            setTimeout(function () {
-
-                reloadPlayer();
-
-            }, 5000);
-
-        });
-
-
-        /* ==============================
-           SETUP ERROR
-        ============================== */
-
-        player.on("setupError", function (event) {
-
-            console.log(
-                "Setup error:",
-                event
-            );
-
         });
 
     }
 
+    /*
+     * Native HLS
+     * Mainly Safari / Apple devices
+     */
+    else if (
+        video.canPlayType(
+            "application/vnd.apple.mpegurl"
+        )
+    ) {
 
-    /* =========================================
-       RELOAD PLAYER
-    ========================================= */
+        video.src = streamUrl;
 
-    function reloadPlayer() {
+        video.addEventListener(
+            "loadedmetadata",
+            function () {
 
-        console.log(
-            "Reloading HLS stream..."
+                video.play().catch(function () {
+                    // Autoplay blocked.
+                });
+
+            }
         );
 
+    }
 
-        try {
+    else {
 
-            player.remove();
-
-        }
-
-        catch (e) {
-
-            console.log(e);
-
-        }
-
-
-        setTimeout(function () {
-
-            player = jwplayer("player");
-
-            loadStream();
-
-        }, 1000);
+        showError(
+            "This browser does not support HLS playback."
+        );
 
     }
 
-
-    /* =========================================
-       START
-    ========================================= */
-
-    loadStream();
-
-
-    /* =========================================
-       STUCK DETECTION
-    ========================================= */
-
-    let lastPosition = -1;
-
-    let stuckCounter = 0;
-
-
-    setInterval(function () {
-
-        try {
-
-            if (!player) {
-                return;
-            }
-
-
-            const state =
-                player.getState();
-
-
-            const position =
-                player.getPosition();
-
-
-            /*
-             * Only check while playing/buffering
-             */
-
-            if (
-                state === "playing" ||
-                state === "buffering"
-            ) {
-
-                if (
-                    position === lastPosition
-                ) {
-
-                    stuckCounter++;
-
-                    console.log(
-                        "Possible stuck stream:",
-                        stuckCounter
-                    );
-
-
-                    /*
-                     * 3 × 10 seconds
-                     */
-
-                    if (
-                        stuckCounter >= 3
-                    ) {
-
-                        console.log(
-                            "Stream stuck. Reloading..."
-                        );
-
-                        stuckCounter = 0;
-
-                        reloadPlayer();
-
-                    }
-
-                }
-
-                else {
-
-                    stuckCounter = 0;
-
-                }
-
-            }
-
-
-            lastPosition = position;
-
-        }
-
-        catch (e) {
-
-            console.log(
-                "Stuck check error:",
-                e
-            );
-
-        }
-
-    }, 10000);
-
-}
-
+})();
 </script>
 
 </body>
-
 </html>
